@@ -14,8 +14,7 @@ from pyrogram.types import (
     Message,
 )
 from pyrogram.errors import FloodWait, SessionPasswordNeeded, PhoneCodeInvalid
-
-from bot import config
+import config
 from bot.database import (
     init_db,
     add_session,
