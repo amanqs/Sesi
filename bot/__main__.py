@@ -299,7 +299,7 @@ async def handle_digit(q: CallbackQuery):
 
         await q.message.reply(
             f"Kode OTP diterima: `{digits}`\nMencoba login...",
-            parse_mode="markdown",
+            parse_mode=enums.ParseMode.MARKDOWN,
         )
         return await do_sign_in(q.message, uid)
 
@@ -311,7 +311,7 @@ async def handle_digit(q: CallbackQuery):
 
     await q.message.edit(
         f"Masukkan kode OTP:\n`{digits}`",
-        parse_mode="markdown",
+        parse_mode=enums.ParseMode.MARKDOWN,
         reply_markup=otp_keyboard(),
     )
     await q.answer()
@@ -339,7 +339,7 @@ async def start_login_process(m: Message, phone: str):
     await m.reply(
         f"Mengirim kode ke nomor: `{phone}`\n"
         "Masukkan kode OTP dengan keypad.",
-        parse_mode="markdown",
+        parse_mode=enums.ParseMode.MARKDOWN,
         reply_markup=otp_keyboard(),
     )
 
