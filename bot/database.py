@@ -2,6 +2,7 @@
 import os
 import sqlite3
 from .config import DB_PATH
+from typing import List, Dict, Any
 
 # Pastikan folder tempat DB berada ada
 db_dir = os.path.dirname(DB_PATH)
