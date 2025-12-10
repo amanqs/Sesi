@@ -2,7 +2,7 @@
 
 import sqlite3
 from typing import List, Dict, Any
-from config import DB_PATH
+from bot.config import DB_PATH
 
 _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 _cur = _conn.cursor()
