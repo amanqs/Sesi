@@ -1,84 +1,65 @@
-# database.py (JSON Storage Version)
-
+# bot/database.py
 import json
 import os
 from datetime import datetime
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "sessions.json")
 
-# Pastikan file JSON ada
+# buat file jika belum ada
 if not os.path.exists(DB_FILE):
     with open(DB_FILE, "w") as f:
         json.dump([], f)
 
-
-# ---- Helper internal ----
-
-def _load_db():
+# --- helper ---
+def _load():
     with open(DB_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return []
+        return json.load(f)
 
-
-def _save_db(data):
+def _save(data):
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-
-# ---- Public API ----
-
-def init_db():
-    """Compatibility only. JSON does not need schema."""
-    pass
-
-
+# --- add session ---
 def add_session(data):
-    db = _load_db()
-
-    # Auto-increment ID
-    data["id"] = (db[-1]["id"] + 1) if db else 1
-
-    # Timestamp jika belum ada
-    if "created_at" not in data:
-        data["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Default is_active
-    if "is_active" not in data:
-        data["is_active"] = 1
+    db = _load()
+    data["id"] = len(db) + 1
+    data["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     db.append(data)
-    _save_db(db)
+    _save(db)
     return data["id"]
 
-
+# --- get sessions by owner ---
 def get_sessions_by_owner(owner_id: int):
-    db = _load_db()
-    return [x for x in db if x["owner_id"] == owner_id]
+    db = _load()
+    return [s for s in db if s["owner_id"] == owner_id]
 
-
+# --- get all sessions (admin) ---
 def get_all_sessions():
-    return _load_db()
+    return _load()
 
-
+# --- delete session by owner ---
 def delete_sessions_by_owner(owner_id: int):
-    db = _load_db()
-    new_db = [x for x in db if x["owner_id"] != owner_id]
-    deleted = len(db) - len(new_db)
-    _save_db(new_db)
+    db = _load()
+    newdb = [s for s in db if s["owner_id"] != owner_id]
+    deleted = len(db) - len(newdb)
+
+    _save(newdb)
     return deleted
 
-
+# --- mark all inactive ---
 def mark_all_inactive(owner_id: int):
-    db = _load_db()
-    for sess in db:
-        if sess["owner_id"] == owner_id:
-            sess["is_active"] = 0
-    _save_db(db)
+    db = _load()
+    for s in db:
+        if s["owner_id"] == owner_id:
+            s["is_active"] = 0
+    _save(db)
     return True
 
-
+# --- get sessions for disconnect ---
 def get_sessions_for_disconnect(owner_id: int):
-    db = _load_db()
-    return [x for x in db if x["owner_id"] == owner_id and x.get("is_active", 1) == 1]
+    db = _load()
+    return [
+        s for s in db 
+        if s["owner_id"] == owner_id and s.get("is_active", 1) == 1
+    ]
