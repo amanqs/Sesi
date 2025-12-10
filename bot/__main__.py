@@ -24,8 +24,8 @@ from bot.database import (
     get_sessions_for_disconnect,
 )
 
-# --- init db & folder sessions ---
-os.makedirs("sessions", exist_ok=True)
+SESSION_DIR = os.path.join(os.path.dirname(__file__), "sessions")
+os.makedirs(SESSION_DIR, exist_ok=True)
 
 app = Client(
     "bot",
