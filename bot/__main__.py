@@ -326,8 +326,8 @@ async def start_login_process(m: Message, phone: str):
 
     # siapkan client user sementara
     session_name = os.path.join(
-        "sessions", f"{uid}_{int(datetime.now().timestamp())}"
-    )
+        SESSION_DIR, f"{uid}_{int(datetime.now().timestamp())}"
+)
 
     user_client = Client(
         session_name,
