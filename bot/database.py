@@ -1,7 +1,7 @@
 # database.py
 import os
 import sqlite3
-from config import DB_PATH
+from .config import DB_PATH
 
 # Pastikan folder tempat DB berada ada
 db_dir = os.path.dirname(DB_PATH)
