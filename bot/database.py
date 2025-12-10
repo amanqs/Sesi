@@ -1,8 +1,17 @@
 # database.py
-
+import os
 import sqlite3
 from typing import List, Dict, Any
 from bot.config import DB_PATH
+
+
+db_dir = os.path.dirname(DB_PATH)
+if db_dir and not os.path.exists(db_dir):
+    os.makedirs(db_dir, exist_ok=True)
+
+import sqlite3
+_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+_cur = _conn.cursor()
 
 _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 _cur = _conn.cursor()
