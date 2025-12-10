@@ -1,22 +1,23 @@
 # database.py
 import os
 import sqlite3
-from .config import DB_PATH
+from config import DB_PATH
 
-# Pastikan folder tujuan DB ada
+# Pastikan folder tempat DB berada ada
 db_dir = os.path.dirname(DB_PATH)
-if db_dir and not os.path.exists(db_dir):
+if not os.path.exists(db_dir):
     os.makedirs(db_dir, exist_ok=True)
 
-# Buat file db jika belum ada
+# Buat file DB jika belum ada
 if not os.path.exists(DB_PATH):
     open(DB_PATH, "a").close()
 
-# Pastikan permission file aman
+# Pastikan permission aman
 os.chmod(DB_PATH, 0o666)
 
 _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 _cur = _conn.cursor()
+
 
 
 def init_db():
