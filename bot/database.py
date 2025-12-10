@@ -1,106 +1,84 @@
-# database.py
+# database.py (JSON Storage Version)
+
+import json
 import os
-import sqlite3
-from config import DB_PATH
-from typing import List, Dict, Any
+from datetime import datetime
 
-# Pastikan folder tempat DB berada ada
-db_dir = os.path.dirname(DB_PATH)
-if not os.path.exists(db_dir):
-    os.makedirs(db_dir, exist_ok=True)
+DB_FILE = os.path.join(os.path.dirname(__file__), "sessions.json")
 
-# Buat file DB jika belum ada
-if not os.path.exists(DB_PATH):
-    open(DB_PATH, "a").close()
-
-# Pastikan permission aman
-os.chmod(DB_PATH, 0o666)
-
-_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-_cur = _conn.cursor()
+# Pastikan file JSON ada
+if not os.path.exists(DB_FILE):
+    with open(DB_FILE, "w") as f:
+        json.dump([], f)
 
 
+# ---- Helper internal ----
+
+def _load_db():
+    with open(DB_FILE, "r") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return []
+
+
+def _save_db(data):
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+# ---- Public API ----
 
 def init_db():
-    _cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner_id INTEGER NOT NULL,
-            phone TEXT,
-            session_name TEXT,
-            session_string TEXT,
-            tg_user_id INTEGER,
-            username TEXT,
-            first_name TEXT,
-            device TEXT,
-            is_active INTEGER DEFAULT 1,
-            created_at TEXT
-        )
-        """
-    )
-    _conn.commit()
+    """Compatibility only. JSON does not need schema."""
+    pass
 
 
-def add_session(data: Dict[str, Any]) -> int:
-    _cur.execute(
-        """
-        INSERT INTO sessions (
-            owner_id, phone, session_name, session_string,
-            tg_user_id, username, first_name, device,
-            is_active, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            data["owner_id"],
-            data.get("phone"),
-            data["session_name"],
-            data["session_string"],
-            data.get("tg_user_id"),
-            data.get("username"),
-            data.get("first_name"),
-            data.get("device", "PyrogramClient"),
-            data.get("is_active", 1),
-            data.get("created_at"),
-        ),
-    )
-    _conn.commit()
-    return _cur.lastrowid
+def add_session(data):
+    db = _load_db()
+
+    # Auto-increment ID
+    data["id"] = (db[-1]["id"] + 1) if db else 1
+
+    # Timestamp jika belum ada
+    if "created_at" not in data:
+        data["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Default is_active
+    if "is_active" not in data:
+        data["is_active"] = 1
+
+    db.append(data)
+    _save_db(db)
+    return data["id"]
 
 
-def get_sessions_by_owner(owner_id: int) -> List[sqlite3.Row]:
-    _cur.execute(
-        "SELECT * FROM sessions WHERE owner_id = ? ORDER BY id DESC", (owner_id,)
-    )
-    return _cur.fetchall()
+def get_sessions_by_owner(owner_id: int):
+    db = _load_db()
+    return [x for x in db if x["owner_id"] == owner_id]
 
 
-def get_all_sessions() -> List[sqlite3.Row]:
-    _cur.execute("SELECT * FROM sessions ORDER BY id DESC")
-    return _cur.fetchall()
+def get_all_sessions():
+    return _load_db()
 
 
-def delete_sessions_by_owner(owner_id: int) -> int:
-    _cur.execute("DELETE FROM sessions WHERE owner_id = ?", (owner_id,))
-    changes = _conn.total_changes
-    _conn.commit()
-    return changes
+def delete_sessions_by_owner(owner_id: int):
+    db = _load_db()
+    new_db = [x for x in db if x["owner_id"] != owner_id]
+    deleted = len(db) - len(new_db)
+    _save_db(new_db)
+    return deleted
 
 
-def mark_all_inactive(owner_id: int) -> int:
-    _cur.execute(
-        "UPDATE sessions SET is_active = 0 WHERE owner_id = ? AND is_active = 1",
-        (owner_id,),
-    )
-    changes = _conn.total_changes
-    _conn.commit()
-    return changes
+def mark_all_inactive(owner_id: int):
+    db = _load_db()
+    for sess in db:
+        if sess["owner_id"] == owner_id:
+            sess["is_active"] = 0
+    _save_db(db)
+    return True
 
 
 def get_sessions_for_disconnect(owner_id: int):
-    _cur.execute(
-        "SELECT id, session_string FROM sessions WHERE owner_id = ? AND is_active = 1",
-        (owner_id,),
-    )
-    return _cur.fetchall()
+    db = _load_db()
+    return [x for x in db if x["owner_id"] == owner_id and x.get("is_active", 1) == 1]
