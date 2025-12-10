@@ -16,7 +16,6 @@ from pyrogram.types import (
 from pyrogram.errors import FloodWait, SessionPasswordNeeded, PhoneCodeInvalid
 import config
 from bot.database import (
-    init_db,
     add_session,
     get_sessions_by_owner,
     get_all_sessions,
@@ -27,7 +26,6 @@ from bot.database import (
 
 # --- init db & folder sessions ---
 os.makedirs("sessions", exist_ok=True)
-init_db()
 
 app = Client(
     "bot",
