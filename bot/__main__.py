@@ -155,33 +155,34 @@ async def handle_read_code(q: CallbackQuery):
 async def handle_list_sesi(q: CallbackQuery):
     uid = q.from_user.id
     sessions = get_sessions_by_owner(uid)
+
     if not sessions:
         await q.message.reply("List Active Session\nTotal users: 0")
         await q.answer()
         return
 
     lines = [f"List Active Session\nTotal users: {len(sessions)}\n"]
+
     for row in sessions:
-        (
-            sid,
-            owner_id,
-            phone,
-            session_name,
-            _session_string,
-            tg_user_id,
-            username,
-            first_name,
-            device,
-            is_active,
-            created_at,
-        ) = row
+        sid = row["id"]
+        owner_id = row["owner_id"]
+        phone = row.get("phone", "-")
+        session_name = row.get("session_name", "-")
+        session_string = row.get("session_string", "-")
+        tg_user_id = row.get("tg_user_id", "-")
+        username = row.get("username", "-")
+        first_name = row.get("first_name", "-")
+        device = row.get("device", "-")
+        is_active = row.get("is_active", 1)
+        created_at = row.get("created_at", "-")
 
         status_icon = "✅" if is_active else "❌"
+
         lines.append(
             f"ID DB: {sid}\n"
             f"STATUS: {status_icon}\n"
             f"TG ID: {tg_user_id}\n"
-            f"USERNAME: @{username if username else '-'}\n"
+            f"USERNAME: @{username}\n"
             f"NAMA: {first_name}\n"
             f"NOHP: {phone}\n"
             f"DEVICE: {device}\n"
@@ -191,7 +192,6 @@ async def handle_list_sesi(q: CallbackQuery):
 
     await q.message.reply("\n".join(lines))
     await q.answer()
-
 
 async def handle_clear_sesi(q: CallbackQuery):
     uid = q.from_user.id
@@ -208,7 +208,9 @@ async def handle_disconnect(q: CallbackQuery):
         return
 
     success = 0
-    for sid, session_string in rows:
+    for row in rows:
+        sid = row["id"]
+        session_string = row["session_string"]
         try:
             client = Client(
                 name=f"disc_{sid}",
@@ -249,9 +251,9 @@ async def handle_hp(q: CallbackQuery):
         return
     phones = []
     for row in sessions:
-        phone = row[2]  # kolom phone
-        tg_user_id = row[5]
-        username = row[6] or "-"
+        phone = row.get("phone", "-")
+        tg_user_id = row.get("tg_user_id", "-")
+        username = row.get("username", "-")
         phones.append(f"{phone} → {tg_user_id} (@{username})")
     text = "Daftar nomor yang tersimpan:\n\n" + "\n".join(phones)
     await q.message.reply(text)
